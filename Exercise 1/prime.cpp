@@ -16,7 +16,7 @@ void find_prime(std::set<int> &prime_number, const int lower, const int upper, c
         } else if (i <= 1 || i % 2 == 0) {
             continue;
         }
-        for (int j = 3; j < std::sqrt(i); j+=2) {
+        for (int j = 3; j < std::sqrt(i) + 1; j+=2) {
             if (i % j == 0) {
                 prime = false;
                 break;
