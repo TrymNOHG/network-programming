@@ -1,7 +1,11 @@
 #include <iostream>
 #include <vector>
 #include <stdlib.h>
+
 #include "ttt_functions.hpp"
+
+// In order to compile this program, type g++ -std=c++11 ttt.cpp ttt_functions.cpp
+// It needs to be compiled in a special c++ version...
 
 int main() {
 

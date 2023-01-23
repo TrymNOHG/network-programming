@@ -1,0 +1,3 @@
+/Users/Trym/Desktop/NTNU DataIng/Second Year/Second Semester/Network Programming/Øvinger/network-programming/Exercise 1/cmake-build-debug/CMakeFiles/Exercise_1.dir
+/Users/Trym/Desktop/NTNU DataIng/Second Year/Second Semester/Network Programming/Øvinger/network-programming/Exercise 1/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/Trym/Desktop/NTNU DataIng/Second Year/Second Semester/Network Programming/Øvinger/network-programming/Exercise 1/cmake-build-debug/CMakeFiles/rebuild_cache.dir
