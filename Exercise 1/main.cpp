@@ -19,10 +19,10 @@ int main(int argc, char **argv) {
 
     num_threads = stoi(threadQuest);
 
-    cout << "From what number?";
+    cout << "From what number?\n";
     cin >> lower;
 
-    cout << "To what number?";
+    cout << "To what number?\n";
     cin >> upper;
 
     std::set<int> prime_numbers;
