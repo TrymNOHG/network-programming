@@ -44,13 +44,13 @@ void Workers::stop() {
     while(!this->task_queue.empty()) {
         this->cv.wait(lock);
     }
+    this->running = false;
+    cv.notify_all();
 }
 
 void Workers::join() {
     std::thread t([&] {
         this->stop();
-        this->running = false;
-        cv.notify_all();
         for(auto& thread: this->thread_pool) {
             thread.join();
         }
