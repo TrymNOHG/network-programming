@@ -1,0 +1,7 @@
+# ninja log v5
+8	70	1676502708513723249	build.ninja	428a565235cd6de7
+0	395	1676502708913175166	CMakeFiles/exercise_3.dir/main.cpp.o	1f2e8b39c810758a
+0	396	1676502708913174832	CMakeFiles/exercise_3.dir/SocketClient.cpp.o	b50909172f384e19
+0	427	1676502708946445582	CMakeFiles/exercise_3.dir/SocketServer.cpp.o	7698ef7b9b8821f1
+3	431	1676542500019159582	CMakeFiles/exercise_3.dir/SocketClient.cpp.o	b50909172f384e19
+3	452	1676542500041201832	CMakeFiles/exercise_3.dir/SocketServer.cpp.o	7698ef7b9b8821f1
