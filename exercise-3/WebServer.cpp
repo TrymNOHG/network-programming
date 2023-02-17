@@ -14,11 +14,12 @@
 #define PORT 8080
 #define IP_VAL 0
 
+void add_string_to_buffer(char msg_buffer[1024 * 16], int &index, char *string);
+
 int main() {
 
 
     std::vector<std::thread> thread_pool;
-    char msg_buffer[1024];
 
     int option = 1;
     int server_socket_fd = socket(AF_INET, SOCK_STREAM, IP_VAL); // Creating the actual socket
@@ -49,22 +50,43 @@ int main() {
         if (new_socket_fd < 0) perror("New connection failed.");
         else {
             thread_pool.emplace_back([new_socket_fd] {
-                const char *return_msg = "HTTP/1.0 200 OK\n"
+                char msg_buffer[1024 * 16];
+                char recv_msg[1024];
+                int current_index = 0;
+
+                if (recv(new_socket_fd, &recv_msg, sizeof(recv_msg), 0) < 1) perror("Recv fail");
+                const char *server_msg = "HTTP/1.0 200 OK\n"
                                          "Content-Type: text/html; charset=utf-8\n"
                                          "\n<HTML><BODY>\n"
                                          "<H1> Hilsen. Du har koblet deg opp til min enkle web-tjener </h1>\n"
-                                         "Header fra klient er:\n"
-                                         "<UL>\n"
-                                         "<LI> ...... </LI>\n"
-                                         "</BODY></HTML>";;
-                send(new_socket_fd, return_msg, strlen(return_msg), 0);
+                                         "Header fra klient er:<br>";
+
+
+                add_string_to_buffer(msg_buffer, current_index, (char *) server_msg);
+
+
+
+                add_string_to_buffer(msg_buffer, current_index, (char *) "<UL>\n");
+                std::string list_point;
+                for (auto &charac : recv_msg) {
+                    if(charac == '\n') {
+                        add_string_to_buffer(msg_buffer, current_index, (char *) "<LI>");
+                        add_string_to_buffer(msg_buffer, current_index, (char *) list_point.c_str());
+                        add_string_to_buffer(msg_buffer, current_index, (char *) "</LI>");
+                        list_point = "";
+                    } else {
+                        list_point += charac;
+                    }
+                }
+                add_string_to_buffer(msg_buffer, current_index, (char *) "</BODY></HTML>");
+
+                send(new_socket_fd, msg_buffer, strlen(msg_buffer), 0);
                 std::this_thread::sleep_for(std::chrono::seconds(5));
-                //Add while to be able to have a client communicate more than once
                 close(new_socket_fd);
             });
         }
         char ans;
-        std::cout << "Do you want to keep the server running? (Y/N)";
+        std::cout << "Do you want to keep the server running? (Y/N)\n";
         std::cin >> ans;
         if(ans == 'N') exit = true;
     }
@@ -76,4 +98,10 @@ int main() {
     }
 
     return 0;
+}
+
+void add_string_to_buffer(char msg_buffer[1024 * 16], int &index, char *string) {
+    for (int i = 0; i < strlen(string); i++) {
+        msg_buffer[index++] = string[i];
+    }
 }
