@@ -1,6 +1,5 @@
 //
-// Created by Trym Hamer Gudvangen on 2/15/23.
-// g++ SocketServer.cpp -std=c++17 -o Server
+// Created by Trym Hamer Gudvangen on 2/16/23.
 //
 
 #include <sys/socket.h>
@@ -12,14 +11,11 @@
 #include <thread>
 #include <cstring>
 
-#include "SocketData.cpp"
-
-#define PORT 1250
+#define PORT 8080
 #define IP_VAL 0
 
-double calculate(InputData inputData);
-
 int main() {
+
 
     std::vector<std::thread> thread_pool;
     char msg_buffer[1024];
@@ -49,21 +45,21 @@ int main() {
     bool exit = false;
 
     while(!exit) {
-        int new_socket_fd = accept(server_socket_fd, (struct sockaddr*)&address, (socklen_t *)&address_len);
+        int new_socket_fd = accept(server_socket_fd, (struct sockaddr*)&address, (socklen_t *)&address_len); //Here multiple threads can be made.
         if (new_socket_fd < 0) perror("New connection failed.");
         else {
-            thread_pool.emplace_back([new_socket_fd, msg_buffer] {
-                const char *return_msg = "You have successfully connected to the socket!\n";
+            thread_pool.emplace_back([new_socket_fd] {
+                const char *return_msg = "HTTP/1.0 200 OK\n"
+                                         "Content-Type: text/html; charset=utf-8\n"
+                                         "\n<HTML><BODY>\n"
+                                         "<H1> Hilsen. Du har koblet deg opp til min enkle web-tjener </h1>\n"
+                                         "Header fra klient er:\n"
+                                         "<UL>\n"
+                                         "<LI> ...... </LI>\n"
+                                         "</BODY></HTML>";;
                 send(new_socket_fd, return_msg, strlen(return_msg), 0);
-
-                InputData inputData = {0};
-                long client_stat = recv(new_socket_fd, &inputData, sizeof(inputData), 0);
-                while(client_stat > 0) {
-                    double return_val = calculate(inputData);
-                    send(new_socket_fd, &return_val, sizeof(double), 0);
-                    inputData = {0};
-                    client_stat = recv(new_socket_fd, &inputData, sizeof(inputData), 0);
-                }
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                //Add while to be able to have a client communicate more than once
                 close(new_socket_fd);
             });
         }
@@ -79,23 +75,5 @@ int main() {
         thread.join();
     }
 
-
- }
-
-double calculate(InputData inputData) {
-
-    switch(inputData.op) {
-        case '+':
-            return inputData.num_1 + inputData.num_2;
-        case '-':
-            return inputData.num_1 - inputData.num_2;
-        case '*':
-            return inputData.num_1 * inputData.num_2;
-        case '/':
-            return inputData.num_1 / inputData.num_2;
-    }
-
-    return -1;
+    return 0;
 }
-
-
