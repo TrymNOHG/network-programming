@@ -10,13 +10,11 @@
 #include <netinet/in.h>
 #include <vector>
 #include <thread>
-#include <cstring>
 #include <netdb.h>
 
 #include "SocketData.cpp"
 
-#define PORT "1250"
-#define IP_VAL 0
+#define PORT "8080"
 
 double calculate(InputData inputData);
 void *config_in_addr(sockaddr &sa);
@@ -40,7 +38,7 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    while(server_info->ai_next != nullptr){
+    while(server_info != nullptr){
         server_socket_fd = socket(server_info->ai_family, SOCK_DGRAM, server_info->ai_protocol); // Creating the actual socket
         if(server_socket_fd < 0) {
             perror("Failed to create socket.");
@@ -50,68 +48,39 @@ int main() {
 
         int bind_stat = bind(server_socket_fd, server_info->ai_addr, server_info->ai_addrlen);
         if (bind_stat < 0) {
+            close(server_socket_fd);
             perror("The socket failed to attach to the specified Port");
             server_info = server_info->ai_next;
             continue;
         }
         else std::cout << "The socket has been attached to Port " << PORT << std::endl;
 
+
         break;
     }
-
-    //TODO: doesn't reach here
 
     if (server_info == nullptr) {
         std::cout << "There was no valid socket opened.";
         exit(EXIT_FAILURE);
     }
 
-
-
     InputData inputData{0};
     address_len = sizeof(client_addr);
-    while(recvfrom(server_socket_fd, &inputData, sizeof(inputData), 0, &(struct sockaddr &)client_addr, &address_len) == -1) {
-        perror("Recovering message failed");
+
+    while(1) {
+        while(recvfrom(server_socket_fd, &inputData, sizeof(inputData), MSG_WAITALL, &(struct sockaddr &)client_addr, &address_len) == -1) {
+            perror("Recovering message failed");
+        }
+
+
+        double return_val = calculate(inputData);
+        int bytes_sent = (int) sendto(server_socket_fd,
+                                      &return_val, sizeof(double),
+                                      0, &(struct sockaddr &)client_addr, address_len);
+        if(bytes_sent == -1) perror("Send error");
+        std::cout << "Answer sent!" << std::endl;
+        inputData = {0};
     }
-
-    double return_val = calculate(inputData);
-    int bytes_sent = (int) sendto(server_socket_fd,
-                            &return_val, sizeof(double),
-                            0, &(struct sockaddr &)client_addr, address_len);
-    if(bytes_sent == -1) perror("Send error");
-    inputData = {0};
-
-
-
-//    bool exit = false;
-//    while(!exit) {
-//            thread_pool.emplace_back([] {
-//                const char *return_msg = "You have successfully connected to the socket!\n";
-//                sendto(new_socket_fd, return_msg, strlen(return_msg), 0);
-//
-//                InputData inputData = {0};
-//                long client_stat = recvfrom(new_socket_fd, &inputData, sizeof(inputData), 0);
-//                while(client_stat > 0) {
-//                    double return_val = calculate(inputData);
-//                    sendto(new_socket_fd, &return_val, sizeof(double), 0);
-//                    inputData = {0};
-//                    client_stat = recvfrom(new_socket_fd, &inputData, sizeof(inputData), 0);
-//                }
-//                close(new_socket_fd);
-//            });
-//        char ans;
-//        std::cout << "Do you want to keep the server running? (Y/N)";
-//        std::cin >> ans;
-//        if(ans == 'N') exit = true;
-//    }
-    freeaddrinfo(server_info);
-
-    shutdown(server_socket_fd, SHUT_RDWR);
-//
-//    for (auto& thread : thread_pool) {
-//        thread.join();
-//    }
-
 
 }
 
