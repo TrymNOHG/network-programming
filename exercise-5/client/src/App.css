@@ -1,0 +1,28 @@
+.Compiler {
+  display: grid;
+  grid-template-rows: 10fr 0.5fr 10fr;
+  row-gap: 20px;
+  max-width: 40%;
+  text-align: center;
+  align-content: center;
+  margin-top: 20px;
+}
+
+.Compiler textarea {
+  min-width: 500px;
+  min-height: 250px;
+}
+
+.Compiler button {
+  max-width: 200px;
+  max-height: 40px;
+  align-self: center;
+}
+
+.Compiler header {
+  background-color: #282c34;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
