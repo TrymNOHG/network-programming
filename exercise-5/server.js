@@ -7,7 +7,7 @@ app.use(express.static(path.join(__dirname, 'client/build')))
 
 // The endpoint of the API
 app.post('/compile', (req, res) => {
-    const code = req.body.code;
+    const code = req.body;
     res.send("Code received!");
 });
 

@@ -1,6 +1,5 @@
 import {useEffect, useState} from 'react';
 import axios from 'axios';
-import {response} from "express";
 
 const apiClient = axios.create({
     baseURL: 'http://localhost:8082',
@@ -18,7 +17,8 @@ function Compiler() {
     const sendCode = () => {
         apiClient.post('/compile', code)
             .then(response => {
-                setOutPut(response);
+                setOutPut(response.data.toString());
+                console.log("Status of POST:" + response.statusText)
             })
             .catch(error => {
                 console.log('Error', error);
@@ -41,8 +41,7 @@ function Compiler() {
             <button onClick={sendCode}>Compile and Run</button>
             <div className={"output"}>
                 <header>Output:
-
-                    <textarea>{{ output }}</textarea>
+                    <textarea value={output}></textarea>
                 </header>
             </div>
         </div>
