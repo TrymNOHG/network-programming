@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 import axios from 'axios';
 
 const apiClient = axios.create({
@@ -15,9 +15,9 @@ function Compiler() {
     const [code, setCode] = useState("");
     const [output, setOutPut] = useState("");
     const sendCode = () => {
-        apiClient.post('/compile', code)
+        apiClient.post('/compile', {code: code})
             .then(response => {
-                setOutPut(response.data.toString());
+                setOutPut(String(response.data));
                 console.log("Status of POST:" + response.statusText)
             })
             .catch(error => {
