@@ -18,15 +18,19 @@
 #include <unistd.h>
 #include <vector>
 
+
 #define GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-#define HTTP_PORT 3000
 #define WEBSOCKET_PORT 3001
 
 bool c_pointer_contains(char *string, char *sub_string);
+char *concat_char_pointers(char *first, char *second);
+std::vector<char*> split_char_pointer(char *string, char delimiter);
 char *base64_encoding(unsigned char *string);
 char *opening_handshake(char* client_handshake);
+char *closing_handshake();
 
 int main() {
+
 
 //    struct sockaddr_in address = {0};
 //    int address_len = sizeof(address);
@@ -77,23 +81,36 @@ int main() {
 //
 //    close(new_socket_fd);
 
-    char *client_handshake = (char*) malloc(sizeof(char) * 256);
-//    std::string msg1 = "abcdef";
-//    char *msg2 = (char*) msg1.c_str();
-//
-//    for(int i = 0; i < msg1.size(); i++) {
-//        std::cout << *(msg2 + i);
-//    }
+    struct sockaddr_in address = {0};
+    int address_len = sizeof(address);
 
-    opening_handshake((char*)"GET /chat HTTP/1.1\n"
-                      "Host: server.example.com\n"
-                      "Upgrade: websocket\n"
-                      "Connection: Upgrade\n"
-                      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\n"
-                      "Origin: http://example.com\n"
-                      "Sec-WebSocket-Protocol: chat, superchat\n"
-                      "Sec-WebSocket-Version: 13\n"
-                      );
+    int server_socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if(server_socket_fd == -1) perror("Failed to initialize socket.");
+    else std::cout << "Socket successfully created.\n";
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(WEBSOCKET_PORT);
+
+    int bind_stat = bind(server_socket_fd, (const struct sockaddr*)&address, address_len);
+    if (bind_stat < 0) perror("The socket failed to attach to the specified Port");
+    else std::cout << "The socket has been attached to Port " << WEBSOCKET_PORT << std::endl;
+
+    if(listen(server_socket_fd, 10)) perror("Server socket connection error");
+
+
+    int new_socket_fd = accept(server_socket_fd, (struct sockaddr*)&address, (socklen_t *)&address_len);
+    if (new_socket_fd < 0) perror("New connection failed.");
+    else std::cout << "Socket connected\n";
+
+    char client_handshake[1024];
+    if (recv(new_socket_fd, &client_handshake, sizeof(client_handshake), 0) < 1) perror("Recv fail");
+
+    std::cout << client_handshake;
+
+    char *server_handshake = opening_handshake(client_handshake);
+    send(new_socket_fd, server_handshake, strlen(server_handshake), 0);
+
 
     return 0;
 }
@@ -116,6 +133,34 @@ bool c_pointer_contains(char *string, char *sub_string) {
     }
     return false;
 }
+
+char *concat_char_pointers(char *first, char *second) {
+    unsigned int size_of_buffer = strlen(first) + strlen(second);
+    char *buffer = (char*) malloc(sizeof(char) * size_of_buffer);
+    for(int i = 0; i < strlen(first); i++) *(buffer + i) = *(first + i);
+    for(unsigned int i = strlen(first); i < size_of_buffer; i++) *(buffer + i) = *(second++);
+    return buffer;
+}
+
+std::vector<char*> split_char_pointer(char *string, char delimiter) {
+    std::vector<char*> elements;
+    for(unsigned int i = 0; i < strlen(string); i++) {
+        if(*(string + i) == '\n') {
+            char *buffer = (char *)malloc(sizeof(char) * ++i);
+            strlcpy(buffer, string, i);
+            elements.emplace_back(buffer);
+            string += i;
+            i = 0;
+        }
+    }
+
+    char *buffer = (char *)malloc(sizeof(char) * strlen(string) + 1);
+    strlcpy(buffer, string, strlen(string) + 1);
+    elements.emplace_back(buffer);
+
+    return elements;
+}
+
 
 char *base64_encoding(unsigned char *string) {
 
@@ -144,61 +189,53 @@ char *base64_encoding(unsigned char *string) {
 }
 
 char* opening_handshake(char* client_handshake) {
-    std::vector<char*> elements_of_handshake;
-    elements_of_handshake.emplace_back(client_handshake);
-    for(char it = *client_handshake; it; it=*++client_handshake) {
-        if(it == '\n') {
-            elements_of_handshake.emplace_back(client_handshake);
-        }
-    }
-    elements_of_handshake.emplace_back(client_handshake);
+    std::vector<char*> elements_of_handshake = split_char_pointer(client_handshake, '\n');
 
     char *new_msg = elements_of_handshake[0];
     //TODO: look at the different built-in char pointer methods. Maybe I could properly isolate the elements in the vector.
 
     int HTTP_status = 101;
 
-    std::cout << std::to_string(101).c_str();
-    //TODO: include a reactive HTTP status in the HTTP_status line;
+    //TODO: include a reactive HTTP status in the HTTP_status line; Could do this with sprintf
     char *HTTP_status_line;
 
     char* handshake = (char*)"HTTP/1.1 101 Switching Protocols\n"
                       "Upgrade: websocket\n"
-                      "Connection: Upgrade";
+                      "Connection: Upgrade\n";
 
-    char *sec_webSocket_key = (char*) malloc(sizeof(char) * 24);
-    bool key = false;
-    int index = 0;
-    for(char *it = elements_of_handshake[4]; it < elements_of_handshake[5]; ++it) {
-        if(*it == ':' && *++it == ' ') key = true;
-        if(key && *(it + 1) != '\n') *(sec_webSocket_key + index++) = *(it + 1);
+
+    char *sec_webSocket_key;
+
+    for(auto& element : elements_of_handshake) {
+        if(c_pointer_contains(element, (char*)"Sec-WebSocket-Key:")) {
+            while(*element++ != ':' || *element++ != ' ');
+            sec_webSocket_key = (char*) malloc(sizeof(char) * strlen(element));
+            strlcpy(sec_webSocket_key, element, strlen(element));
+            break;
+        }
     }
 
-    char *temp_buffer = (char*)malloc(sizeof(char) * (strlen(sec_webSocket_key) + strlen(GUID)));
-    strcat(temp_buffer, sec_webSocket_key);
-    auto response_val = (const unsigned char*)strcat(temp_buffer, GUID);
-
+    auto response_val = (const unsigned char*) concat_char_pointers(sec_webSocket_key, (char*)GUID);
     auto *message_digest = (unsigned char*)malloc(sizeof(char) * 20);
     SHA1(response_val, strlen((char *)response_val),message_digest);
 
     char *base64_response = base64_encoding(message_digest);
-    std::cout << base64_response;
 
-    char *sec_webSocket_accept = (char*)"Sec-WebSocket-Accept: ";
-    strcat(sec_webSocket_accept, base64_response);
-
-
-    //TODO: could create a more secure string concat method
-    std::cout << sec_webSocket_accept;
-        /*
-         *
-       In compliance with [RFC2616], header fields in the handshake may be
-       sent by the client in any order, so the order in which different
-       header fields are received is not significant.
-         */
+    free(sec_webSocket_key);
+    free((char *)response_val);
+    free(message_digest);
 
 
-    return handshake;
+    char *sec_webSocket_accept = concat_char_pointers((char*)"Sec-WebSocket-Accept: ", base64_response);
+
+    char *full_handshake = (char*) malloc(sizeof(char) * 1024);
+    snprintf(full_handshake, 1024 ,"%s%s\r\n\r\n", handshake, sec_webSocket_accept);
+
+    return full_handshake;
+}
+
+char *closing_handshake() {
+    return nullptr;
 }
 
 /*
