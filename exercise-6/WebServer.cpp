@@ -17,6 +17,9 @@
 #include <cstring>
 #include <unistd.h>
 #include <vector>
+#include <thread>
+
+#include "WSDataFrame.cpp"
 
 
 #define GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -28,9 +31,11 @@ std::vector<char*> split_char_pointer(char *string, char delimiter);
 char *base64_encoding(unsigned char *string);
 char *opening_handshake(char* client_handshake);
 char *closing_handshake();
+void ws_link(std::vector<int> &client_fds);
+short ws_recv_df(int socketfd, WSDataFrame &df);
+short ws_send_df(int socketfd, WSDataFrame &df);
 
 int main() {
-
 
 //    struct sockaddr_in address = {0};
 //    int address_len = sizeof(address);
@@ -98,19 +103,28 @@ int main() {
 
     if(listen(server_socket_fd, 10)) perror("Server socket connection error");
 
+    std::vector<int> client_fds;
+    std::vector<std::thread> thread_pool;
 
-    int new_socket_fd = accept(server_socket_fd, (struct sockaddr*)&address, (socklen_t *)&address_len);
-    if (new_socket_fd < 0) perror("New connection failed.");
-    else std::cout << "Socket connected\n";
+    while(true) {
+        struct sockaddr_in client_address = {0};
 
-    char client_handshake[1024];
-    if (recv(new_socket_fd, &client_handshake, sizeof(client_handshake), 0) < 1) perror("Recv fail");
+        int connected_fd = accept(server_socket_fd, (struct sockaddr*)&client_address, (socklen_t *)&address_len);
+        if (connected_fd < 0) {
+            perror("New connection failed.");
+            exit(1);
+        }
 
-    std::cout << client_handshake;
+        client_fds.emplace_back(connected_fd);
 
-    char *server_handshake = opening_handshake(client_handshake);
-    send(new_socket_fd, server_handshake, strlen(server_handshake), 0);
+        thread_pool.emplace_back([&client_fds]{ //TODO: join
+            ws_link(client_fds);
+        });
+    }
 
+    for(auto& thread : thread_pool) {
+        thread.join();
+    }
 
     return 0;
 }
@@ -134,6 +148,12 @@ bool c_pointer_contains(char *string, char *sub_string) {
     return false;
 }
 
+/**
+ * This method takes two char pointers and concatenates them.
+ * @param first     Start of the new char pointer, given as a char pointer.
+ * @param second    End of the new char pointer, given as a char pointer.
+ * @return          Concatenated char pointer
+ */
 char *concat_char_pointers(char *first, char *second) {
     unsigned int size_of_buffer = strlen(first) + strlen(second);
     char *buffer = (char*) malloc(sizeof(char) * size_of_buffer);
@@ -142,6 +162,12 @@ char *concat_char_pointers(char *first, char *second) {
     return buffer;
 }
 
+/**
+ * This method splits a given char pointer using a given delimiter, ex. '.'
+ * @param string        Char pointer to be split.
+ * @param delimiter     Delimiter, given as a char.
+ * @return              Split char pointer, given as a vector of char pointers.
+ */
 std::vector<char*> split_char_pointer(char *string, char delimiter) {
     std::vector<char*> elements;
     for(unsigned int i = 0; i < strlen(string); i++) {
@@ -160,8 +186,11 @@ std::vector<char*> split_char_pointer(char *string, char delimiter) {
 
     return elements;
 }
-
-
+/**
+ * This method takes a string of characters and transforms it into a base64 encoded string.
+ * @param string    The string to be encoded, given as a char pointer.
+ * @return          Base64 encoded string, given as a char pointer.
+ */
 char *base64_encoding(unsigned char *string) {
 
     char base64_ASCII[64] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
@@ -188,21 +217,21 @@ char *base64_encoding(unsigned char *string) {
     return encoded_msg;
 }
 
+/**
+ * This method creates the server's opening handshake.
+ * @param client_handshake Opening handshake from the client, given as a char pointer.
+ * @return                 Server's opening handshake, given as a char pointer.
+ */
 char* opening_handshake(char* client_handshake) {
     std::vector<char*> elements_of_handshake = split_char_pointer(client_handshake, '\n');
 
-    char *new_msg = elements_of_handshake[0];
-    //TODO: look at the different built-in char pointer methods. Maybe I could properly isolate the elements in the vector.
-
     int HTTP_status = 101;
-
     //TODO: include a reactive HTTP status in the HTTP_status line; Could do this with sprintf
     char *HTTP_status_line;
 
     char* handshake = (char*)"HTTP/1.1 101 Switching Protocols\n"
                       "Upgrade: websocket\n"
                       "Connection: Upgrade\n";
-
 
     char *sec_webSocket_key;
 
@@ -234,17 +263,92 @@ char* opening_handshake(char* client_handshake) {
     return full_handshake;
 }
 
+/**
+ * This method officially closes the connection between a client and the server using a closing handshake.
+ * @return The closing handshake, given as a char pointer.
+ */
 char *closing_handshake() {
     return nullptr;
 }
 
-/*
- * Unit used to send information: messages, which is composed of one or more frames.
- * A frame has an associated type. Each frame belonging to the same message
- * contains the same type of data.
- *
- * This protocol defines 6 frame types.
- *
- * TODO: How should I handle the different frame types? How should I compose a message? Common class for message?
- *
+/**
+ * This method manages the uplinking of a new client to the websocket.
+ * @param client_fds    A vector containing all the client file descriptors connected to the WS.
  */
+void ws_link(std::vector<int> &client_fds) {
+    int this_fd = client_fds.back();
+
+    char client_handshake[1024];
+    if (recv(this_fd, &client_handshake, sizeof(client_handshake), 0) < 1) {
+        perror("Recv fail");
+        return;
+    }
+
+    char *server_handshake = opening_handshake(client_handshake);
+    if (send(this_fd, server_handshake, strlen(server_handshake), 0) < 1) {
+        std::cout << "Handshake failed to send";
+        return;
+    }
+
+    char buffer[1024];
+
+    while(true) {
+        WSDataFrame df = WSDataFrame();
+
+        if (ws_recv_df(this_fd, df) < 0) {
+            perror("Error"); //TODO: fix this
+        }
+
+        if (ws_send_df(this_fd, df) < 0) continue;
+
+        char *payload = (char *) malloc(sizeof(char) * 1024);
+        if (recv(this_fd, payload, 1024, 0) < 0) perror("Error");
+
+        for (int i = 0; i < df.get_payload_length(); i++) { //TODO: fix this
+            *(payload + i); //TODO: add logic for decoding using the masking key. ^
+        }
+        //TODO
+        int size = 0;
+        do {
+            int msg_len;
+            if ((msg_len = recv(this_fd, buffer, 1024, 0)) < 0) break;
+
+            size += msg_len;
+
+            for (int i = 0; i < size; ++i) buffer[i] ^= *(df.mask + (i % 4));
+
+            buffer[size] = 0;
+
+            if (send(this_fd, buffer, msg_len, 0) < 0) break;
+
+            for (int fd : client_fds) {
+                if (fd == this_fd) continue;
+                if (ws_send_df(fd, df) < 0) continue;
+                send(fd, buffer, msg_len, 0);
+            }
+
+        } while (size < df.get_payload_length());
+        //TODO
+
+    }
+}
+
+
+short ws_recv_df(int socketfd, WSDataFrame &df) {
+    short frame{};
+    if(recv(socketfd, &frame, sizeof(short), 0) < 0) return -1;
+    df.set_fin_bit((bool) frame & 1);
+    df.set_opcode_bits((char) frame);
+    df.set_payload_length(frame >> 9);
+
+    if(recv(socketfd, &df.mask, sizeof(int) * 4, 0) < 0) return -1;
+
+    std::cout << "qwerqwer" << std::endl;
+    std::cout << df.mask << std::endl;
+
+    return 0;
+}
+
+short ws_send_df(int socketfd, WSDataFrame &df) {
+
+}

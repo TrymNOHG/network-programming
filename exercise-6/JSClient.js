@@ -10,10 +10,21 @@ const httpServer = net.createServer((connection) => {
   </head>
   <body>
     WebSocket test page
+    <form onsubmit="">
+        <input type="text" id="chat-box"/>
+        <input type="submit" id="forum"/>
+    </form>
+    <textarea id="forum"></textarea>
     <script>
+      const chatBox = document.getElementById('chat-box');
+      const forum = document.getElementById('forum');
       let ws = new WebSocket('ws://localhost:3001');
-      ws.onmessage = event => alert('Message from server: ' + event.data);
-      ws.onopen = (event) => ws.send(event.toString() + "qwerqwer");
+      ws.onmessage = event => forum.value += 'Server: ' + event.data + '\\n'; 
+      ws.onopen = () => ws.send('hello');
+      const send_msg = () => {
+          ws.send(chatBox.value)
+          forum.value += 'Client: ' + chatBox.value + '\\n';
+      }
     </script>
   </body>
 </html>
